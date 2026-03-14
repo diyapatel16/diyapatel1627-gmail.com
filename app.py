@@ -1,190 +1,202 @@
+# ===============================
+# REQUIRED LIBRARIES
+# ===============================
 import streamlit as st
 import pandas as pd
-import pickle
 import numpy as np
+import pickle
+import altair as alt
 
 # ===============================
 # PAGE CONFIG
 # ===============================
-st.set_page_config(page_title="Email Phishing Detector", layout="wide")
+st.set_page_config(page_title="AI Email Phishing Detector", layout="wide")
 
 # ===============================
 # LOAD MODEL
 # ===============================
-model = pickle.load(open("phishing_model.pkl", "rb"))
-vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
+@st.cache_resource
+def load_model():
+    model = pickle.load(open("phishing_model.pkl","rb"))
+    vectorizer = pickle.load(open("vectorizer.pkl","rb"))
+    return model, vectorizer
+
+model, vectorizer = load_model()
 
 # ===============================
-# PHISHING KEYWORDS
+# STYLE
 # ===============================
-phishing_keywords = [
-    "bank","verify","account","password","login",
-    "click","urgent","suspend","security","confirm",
-    "limited","update","payment","alert","link"
-]
+st.markdown("""
+<style>
+
+body{
+background-color:#f5f7fb;
+}
+
+.card{
+background:white;
+border-radius:15px;
+padding:25px;
+box-shadow:0px 5px 15px rgba(0,0,0,0.1);
+margin-bottom:25px;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 # ===============================
-# SIDEBAR NAVIGATION
+# SIDEBAR
 # ===============================
 page = st.sidebar.radio(
-    "Navigation",
-    ["Home","Model Dashboard","Dataset Charts","Detection","About"]
+"Navigation",
+["Home","Live Detection","AI Analysis","Charts","About"]
 )
 
 # ===============================
-# HOME PAGE
+# HOME
 # ===============================
 if page == "Home":
 
-    st.title("📧 Email Phishing Detection System")
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+
+    st.title("📧 AI Email Phishing Detection System")
 
     st.write("""
-This application detects **Phishing Emails** using
-Machine Learning.
+This application detects phishing emails using machine learning.
 
-The system analyzes the **email content**
-and predicts if it is:
+The model analyzes email content and predicts whether the email is:
 
-• ⚠️ Phishing Email  
-• ✅ Legitimate Email
+• Legitimate Email  
+• Phishing Email  
+
+The system uses **TF-IDF feature extraction** and **ML classification**.
 """)
 
-    st.info("Built using Random Forest + TF-IDF Vectorization")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ===============================
-# MODEL DASHBOARD
+# LIVE DETECTION
 # ===============================
-elif page == "Model Dashboard":
+elif page == "Live Detection":
 
-    st.title("📊 Model Performance Dashboard")
-
-    accuracy = 0.95
-    precision = 0.94
-    recall = 0.93
-    f1 = 0.94
-
-    col1,col2,col3,col4 = st.columns(4)
-
-    col1.metric("Accuracy",accuracy)
-    col2.metric("Precision",precision)
-    col3.metric("Recall",recall)
-    col4.metric("F1 Score",f1)
-
-    st.subheader("Model Performance Chart")
-
-    performance = pd.DataFrame({
-        "Metric":["Accuracy","Precision","Recall","F1 Score"],
-        "Score":[accuracy,precision,recall,f1]
-    })
-
-    st.bar_chart(performance.set_index("Metric"))
-
-# ===============================
-# DATASET CHARTS
-# ===============================
-elif page == "Dataset Charts":
-
-    st.title("📊 Dataset Insights")
-
-    st.subheader("Phishing vs Legitimate Emails")
-
-    dataset_chart = pd.DataFrame({
-        "Email Type":["Phishing","Legitimate"],
-        "Count":[5000,7000]
-    })
-
-    st.bar_chart(dataset_chart.set_index("Email Type"))
-
-    st.subheader("Top Phishing Indicators")
-
-    factors = pd.DataFrame({
-        "Factor":[
-            "Suspicious Links",
-            "Urgent Language",
-            "Fake Domains",
-            "Password Requests",
-            "Financial Threats"
-        ],
-        "Influence":[90,85,88,95,80]
-    })
-
-    st.bar_chart(factors.set_index("Factor"))
-
-# ===============================
-# PHISHING DETECTION
-# ===============================
-elif page == "Detection":
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
 
     st.title("🔍 Email Phishing Detection")
 
-    email_text = st.text_area(
-        "Paste Email Content Here",
-        height=200
-    )
+    email_text = st.text_area("Paste Email Content")
 
-    if st.button("Detect Email"):
+    if st.button("Analyze Email"):
 
-        if email_text.strip()=="":
+        if email_text == "":
             st.warning("Please enter email text")
 
         else:
 
-            # Highlight suspicious keywords
-            highlighted = email_text
+            email_vector = vectorizer.transform([email_text])
 
-            for word in phishing_keywords:
-                highlighted = highlighted.replace(
-                    word,
-                    f"🔴{word.upper()}"
-                )
+            prediction = model.predict(email_vector)[0]
 
-            st.subheader("Keyword Analysis")
+            probability = model.predict_proba(email_vector)[0][1]
 
-            st.write(highlighted)
+            st.subheader("Detection Result")
 
-            # ML Prediction
-            email_vec = vectorizer.transform([email_text])
+            st.progress(int(probability*100))
 
-            prediction = model.predict(email_vec)[0]
-
-            st.subheader("Prediction Result")
+            st.metric("Phishing Probability", f"{probability:.2f}")
 
             if prediction == 1:
-
                 st.error("⚠️ PHISHING EMAIL DETECTED")
-
-                st.metric("Risk Level","HIGH")
-
             else:
+                st.success("✅ SAFE EMAIL")
 
-                st.success("✅ LEGITIMATE EMAIL")
-
-                st.metric("Risk Level","LOW")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ===============================
-# ABOUT PAGE
+# AI ANALYSIS
+# ===============================
+elif page == "AI Analysis":
+
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+
+    st.title("🧠 Suspicious Keyword Detection")
+
+    suspicious_words = [
+        "verify",
+        "password",
+        "bank",
+        "login",
+        "urgent",
+        "click",
+        "account",
+        "update"
+    ]
+
+    email_text = st.text_area("Paste Email Content For Keyword Scan")
+
+    if st.button("Scan Email"):
+
+        found_words = []
+
+        for word in suspicious_words:
+            if word in email_text.lower():
+                found_words.append(word)
+
+        if len(found_words) > 0:
+
+            st.warning("⚠️ Suspicious Keywords Found")
+
+            st.write(found_words)
+
+        else:
+
+            st.success("No suspicious keywords detected")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ===============================
+# CHARTS
+# ===============================
+elif page == "Charts":
+
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+
+    st.title("📊 Phishing Statistics")
+
+    chart_data = pd.DataFrame({
+        "Email Type":["Phishing","Legitimate"],
+        "Count":[60,40]
+    })
+
+    chart = alt.Chart(chart_data).mark_bar().encode(
+        x="Email Type",
+        y="Count"
+    )
+
+    st.altair_chart(chart, use_container_width=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ===============================
+# ABOUT
 # ===============================
 elif page == "About":
 
-    st.title("ℹ️ About This Project")
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+
+    st.title("About This Project")
 
     st.write("""
-This system detects phishing emails using **Machine Learning**.
+This project uses machine learning to detect phishing emails.
 
-### Technologies Used
+Project Steps:
 
-• Python  
-• Scikit-Learn  
-• TF-IDF Vectorization  
-• Random Forest Classifier  
-• Streamlit  
+1 Data Collection  
+2 Data Cleaning  
+3 TF-IDF Feature Extraction  
+4 Model Training  
+5 Email Classification  
 
-### Working Process
-
-1️⃣ Email text is entered by the user  
-2️⃣ Text is converted to numerical features using TF-IDF  
-3️⃣ Machine Learning model analyzes the text  
-4️⃣ System predicts if the email is phishing or legitimate
-
-This system helps improve **email security and phishing detection**.
+The model predicts whether an email is phishing or legitimate.
 """)
+
+    st.markdown("</div>", unsafe_allow_html=True)
